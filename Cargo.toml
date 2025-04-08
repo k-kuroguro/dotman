@@ -1,0 +1,8 @@
+[package]
+name = "dotman"
+version = "0.1.0"
+description = "A dotfiles manager"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5.35", features = ["cargo", "derive"] }
