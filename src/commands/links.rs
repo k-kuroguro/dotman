@@ -1,5 +1,5 @@
 use dialoguer::Confirm;
-use home_dir::{self, HomeDirExt};
+use simple_expand_tilde::expand_tilde;
 use std::{
    fs::{create_dir_all, read_link, remove_file, symlink_metadata},
    os::unix::fs::symlink,
@@ -17,7 +17,7 @@ pub fn install(
 ) -> Result<(), Error> {
    for Mapping { src, dest } in mappings {
       let src = dotfiles_dir.join(src);
-      let dest = dest.expand_home().map_err(|e| Error::Other(Box::new(e)))?;
+      let dest = expand_tilde(&dest).ok_or(Error::FailedToExpandTilde(dest.clone()))?;
 
       if !src.exists() {
          println!("Source file {} does not exist. Skipping.", src.display());
@@ -55,7 +55,7 @@ pub fn install(
 
 pub fn remove(mappings: &[Mapping], _dotfiles_dir: &Path) -> Result<(), Error> {
    for Mapping { dest, .. } in mappings {
-      let dest = dest.expand_home().map_err(|e| Error::Other(Box::new(e)))?;
+      let dest = expand_tilde(&dest).ok_or(Error::FailedToExpandTilde(dest.clone()))?;
 
       if dest.exists() {
          remove_file(&dest).map_err(|e| Error::Other(Box::new(e)))?;
@@ -70,7 +70,7 @@ pub fn remove(mappings: &[Mapping], _dotfiles_dir: &Path) -> Result<(), Error> {
 pub fn list(mappings: &[Mapping], dotfiles_dir: &Path) -> Result<(), Error> {
    for Mapping { src, dest } in mappings {
       let src = dotfiles_dir.join(src);
-      let dest = dest.expand_home().map_err(|e| Error::Other(Box::new(e)))?;
+      let dest = expand_tilde(&dest).ok_or(Error::FailedToExpandTilde(dest.clone()))?;
 
       if let Ok(metadata) = symlink_metadata(&dest) {
          if metadata.file_type().is_symlink() {
