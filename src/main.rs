@@ -1,4 +1,13 @@
 use clap::{Args, Parser, Subcommand};
+use colored::Colorize;
+use std::path::PathBuf;
+
+mod commands;
+mod config;
+mod error;
+
+use crate::config::load_config_from_yaml;
+use crate::error::Error;
 
 const CMD_NAME: &str = env!("CARGO_PKG_NAME");
 
@@ -11,6 +20,14 @@ const CMD_NAME: &str = env!("CARGO_PKG_NAME");
 struct Cli {
    #[command(subcommand)]
    command: Commands,
+   #[arg(
+      long,
+      short,
+      global = true,
+      help = "Path to the dotfiles directory",
+      env = "DOTFILES_DIR"
+   )]
+   dotfiles_dir: Option<PathBuf>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -34,7 +51,19 @@ struct LinksArgs {
 #[derive(Debug, Subcommand)]
 enum LinksCommands {
    #[command(about = "Install symlinks")]
-   Install {},
+   Install {
+      #[arg(
+         long,
+         short,
+         help = "Force install symlinks, overwriting existing files without confirmation"
+      )]
+      force: bool,
+      #[arg(
+         long,
+         help = "Dry run, show symlinks that would be installed without actually installing them"
+      )]
+      dry_run: bool,
+   },
    #[command(about = "Remove symlinks")]
    Remove {},
    #[command(about = "List installed symlinks")]
@@ -53,19 +82,31 @@ enum SelfCommands {
    Update {},
 }
 
-fn main() {
+fn get_config_path(dotfiles_dir: &PathBuf) -> PathBuf {
+   dotfiles_dir.join(".dotman.yaml")
+}
+
+fn inner_main() -> Result<(), Error> {
    let args = Cli::parse();
+
+   let dotfiles_dir = match args.dotfiles_dir {
+      Some(path) => path,
+      None => return Err(Error::UndefinedDotfilesDir),
+   };
+   let config_file = std::fs::File::open(get_config_path(&dotfiles_dir))
+      .map_err(|e| Error::FailedToLoadConfig(e))?;
+   let config = load_config_from_yaml(config_file).map_err(|e| Error::FailedToParseConfig(e))?;
 
    match args.command {
       Commands::Links(links_args) => match links_args.command {
-         LinksCommands::Install {} => {
-            unimplemented!("Install symlinks");
+         LinksCommands::Install { force, dry_run } => {
+            commands::links::install(&config.mappings, &dotfiles_dir, force, dry_run)?;
          }
          LinksCommands::Remove {} => {
-            unimplemented!("Remove symlinks");
+            commands::links::remove(&config.mappings, &dotfiles_dir)?;
          }
          LinksCommands::List {} => {
-            unimplemented!("List symlinks");
+            commands::links::list(&config.mappings, &dotfiles_dir)?;
          }
       },
       Commands::Update {} => {
@@ -76,5 +117,16 @@ fn main() {
             unimplemented!("Self update");
          }
       },
+   }
+   Ok(())
+}
+
+fn main() {
+   match inner_main() {
+      Ok(_) => {}
+      Err(e) => {
+         eprintln!("{} {}", "error:".bright_red(), e);
+         std::process::exit(1);
+      }
    }
 }
