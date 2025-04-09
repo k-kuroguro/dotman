@@ -17,6 +17,7 @@ pub fn install(
 ) -> Result<(), Error> {
    for Mapping { src, dest } in mappings {
       let src = dotfiles_dir.join(src);
+      let src = expand_tilde(&src).ok_or(Error::FailedToExpandTilde(src.clone()))?;
       let dest = expand_tilde(&dest).ok_or(Error::FailedToExpandTilde(dest.clone()))?;
 
       if !src.exists() {
@@ -43,7 +44,9 @@ pub fn install(
          }
 
          if let Some(parent) = dest.parent() {
-            create_dir_all(parent).map_err(|e| Error::Other(Box::new(e)))?;
+            if !parent.exists() {
+               create_dir_all(parent).map_err(|e| Error::Other(Box::new(e)))?;
+            }
          }
          symlink(&src, &dest).map_err(|e| Error::Other(Box::new(e)))?;
       }
@@ -53,15 +56,21 @@ pub fn install(
    Ok(())
 }
 
-pub fn remove(mappings: &[Mapping], _dotfiles_dir: &Path) -> Result<(), Error> {
-   for Mapping { dest, .. } in mappings {
+pub fn remove(mappings: &[Mapping], dotfiles_dir: &Path) -> Result<(), Error> {
+   for Mapping { src, dest } in mappings {
+      let src = dotfiles_dir.join(src);
+      let src = expand_tilde(&src).ok_or(Error::FailedToExpandTilde(src.clone()))?;
       let dest = expand_tilde(&dest).ok_or(Error::FailedToExpandTilde(dest.clone()))?;
 
-      if dest.exists() {
+      if is_actual_link(&src, &dest) {
          remove_file(&dest).map_err(|e| Error::Other(Box::new(e)))?;
          println!("Unlink: {}", dest.display());
       } else {
-         println!("{} does not exist. Skipping.", dest.display());
+         println!(
+            "{} does not symlink to {}. Skipping.",
+            dest.display(),
+            src.display(),
+         );
       }
    }
    Ok(())
@@ -70,17 +79,23 @@ pub fn remove(mappings: &[Mapping], _dotfiles_dir: &Path) -> Result<(), Error> {
 pub fn list(mappings: &[Mapping], dotfiles_dir: &Path) -> Result<(), Error> {
    for Mapping { src, dest } in mappings {
       let src = dotfiles_dir.join(src);
+      let src = expand_tilde(&src).ok_or(Error::FailedToExpandTilde(src.clone()))?;
       let dest = expand_tilde(&dest).ok_or(Error::FailedToExpandTilde(dest.clone()))?;
 
-      if let Ok(metadata) = symlink_metadata(&dest) {
-         if metadata.file_type().is_symlink() {
-            if let Ok(link_target) = read_link(&dest) {
-               if link_target == src {
-                  println!("Link: {} -> {}", src.display(), dest.display());
-               }
-            }
-         }
+      if is_actual_link(&src, &dest) {
+         println!("Link: {} -> {}", src.display(), dest.display());
       }
    }
    Ok(())
+}
+
+fn is_actual_link(src: &Path, dest: &Path) -> bool {
+   if let Ok(metadata) = symlink_metadata(dest) {
+      if metadata.file_type().is_symlink() {
+         if let Ok(link_target) = read_link(dest) {
+            return link_target == src;
+         }
+      }
+   }
+   false
 }

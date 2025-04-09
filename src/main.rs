@@ -1,5 +1,7 @@
 use clap::{Args, Parser, Subcommand};
 use colored::Colorize;
+use dirs::home_dir;
+use simple_expand_tilde::expand_tilde;
 use std::path::PathBuf;
 
 mod commands;
@@ -25,9 +27,10 @@ struct Cli {
       short,
       global = true,
       help = "Path to the dotfiles directory",
-      env = "DOTFILES_DIR"
+      env = "DOTFILES_DIR",
+      default_value = "~/dotfiles"
    )]
-   dotfiles_dir: Option<PathBuf>,
+   dotfiles_dir: PathBuf,
 }
 
 #[derive(Debug, Subcommand)]
@@ -82,18 +85,16 @@ enum SelfCommands {
    Update {},
 }
 
-fn get_config_path(dotfiles_dir: &PathBuf) -> PathBuf {
-   dotfiles_dir.join(".dotman.yaml")
+fn get_config_path(dotfiles_dir: &PathBuf) -> Result<PathBuf, Error> {
+   let config_path = dotfiles_dir.join(".dotman.yaml");
+   expand_tilde(&config_path).ok_or(Error::FailedToExpandTilde(config_path.clone()))
 }
 
 fn inner_main() -> Result<(), Error> {
    let args = Cli::parse();
 
-   let dotfiles_dir = match args.dotfiles_dir {
-      Some(path) => path,
-      None => return Err(Error::UndefinedDotfilesDir),
-   };
-   let config_file = std::fs::File::open(get_config_path(&dotfiles_dir))
+   let dotfiles_dir = args.dotfiles_dir;
+   let config_file = std::fs::File::open(get_config_path(&dotfiles_dir)?)
       .map_err(|e| Error::FailedToLoadConfig(e))?;
    let config = load_config_from_yaml(config_file).map_err(|e| Error::FailedToParseConfig(e))?;
 
