@@ -1,6 +1,5 @@
 use clap::{Args, Parser, Subcommand};
 use colored::Colorize;
-use dirs::home_dir;
 use simple_expand_tilde::expand_tilde;
 use std::path::PathBuf;
 
