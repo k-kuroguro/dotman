@@ -1,4 +1,5 @@
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, CommandFactory as _, Parser, Subcommand, ValueHint};
+use clap_complete::{Shell, generate};
 use colored::Colorize;
 use simple_expand_tilde::expand_tilde;
 use std::path::PathBuf;
@@ -27,7 +28,8 @@ struct Cli {
       global = true,
       help = "Path to the dotfiles directory",
       env = "DOTFILES_DIR",
-      default_value = "~/dotfiles"
+      default_value = "~/dotfiles",
+      value_hint = ValueHint::DirPath,
    )]
    dotfiles_dir: PathBuf,
 }
@@ -42,6 +44,11 @@ enum Commands {
    Update {},
    #[command(name = "self", about = format!("Modify the {CMD_NAME} installation"))]
    SelfKw(SelfArgs), // Avoids using `Self` as a name, it's a reserved keyword.
+   #[command(about = "Generate shell completion scripts")]
+   Completion {
+      #[clap(long, short)]
+      shell: Shell,
+   },
 }
 
 #[derive(Debug, Args)]
@@ -117,6 +124,9 @@ fn inner_main() -> Result<(), Error> {
             unimplemented!("Self update");
          }
       },
+      Commands::Completion { shell } => {
+         generate(shell, &mut Cli::command(), CMD_NAME, &mut std::io::stdout());
+      }
    }
    Ok(())
 }
