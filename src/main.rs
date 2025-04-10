@@ -1,6 +1,7 @@
 use clap::{Args, CommandFactory as _, Parser, Subcommand, ValueHint};
 use clap_complete::{Shell, generate};
 use colored::Colorize;
+use shadow_rs::{formatcp, shadow};
 use simple_expand_tilde::expand_tilde;
 use std::path::PathBuf;
 
@@ -11,12 +12,24 @@ mod error;
 use crate::config::load_config_from_yaml;
 use crate::error::Error;
 
+shadow!(build);
+
 const CMD_NAME: &str = env!("CARGO_PKG_NAME");
+const VERSION: &str = formatcp!(
+   r#"{}
+Commit: {} (branch: {})
+Build: {}, {}"#,
+   env!("CARGO_PKG_VERSION"),
+   build::COMMIT_HASH,
+   build::BRANCH,
+   build::RUST_VERSION,
+   build::RUST_CHANNEL,
+);
 
 #[derive(Debug, Parser)]
 #[command(
    name = CMD_NAME,
-   version = env!("CARGO_PKG_VERSION"),
+   version = VERSION,
    about = env!("CARGO_PKG_DESCRIPTION"),
 )]
 struct Cli {
