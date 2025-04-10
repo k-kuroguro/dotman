@@ -163,3 +163,13 @@ fn main() {
       }
    }
 }
+
+#[cfg(test)]
+mod tests {
+   use super::*;
+
+   #[test]
+   fn verify_cli() {
+      Cli::command().debug_assert()
+   }
+}
